@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_clima/services/location.dart';
-import 'package:flutter_clima/utilities/constants.dart';
-import 'package:flutter_clima/services/networking.dart';
 import 'location_screen.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:flutter_clima/services/weather.dart';
 
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
@@ -20,14 +19,8 @@ class LoadingScreenState extends State<LoadingScreen> {
   }
 
   void getLocationData() async {
-    Location location = Location();
-    await location.getCurrentLocation();
-
-    if (location.latitude != null && location.longitude != null) {
-      NetworkHelper networkHelper = NetworkHelper(
-        '$baseUrl?lat=${location.latitude}&lon=${location.longitude}&appid=$apiKey&units=imperial',
-      );
-      var weatherData = await networkHelper.getData();
+    try {
+      var weatherData = await WeatherModel().getLocationWeather();
 
       if (!mounted) return;
       Navigator.push(
@@ -37,6 +30,49 @@ class LoadingScreenState extends State<LoadingScreen> {
             return LocationScreen(locationWeather: weatherData);
           },
         ),
+      );
+    } on LocationException catch (e) {
+      if (!mounted) return;
+      showErrorDialog(
+        context: context, // Pass the current context
+        title: 'Location Error',
+        message: e.message,
+        showOpenSettingsButton:
+            e.message.toLowerCase().contains("settings") ||
+            e.message.toLowerCase().contains("denied forever"),
+        onOkPressed: () {
+          // Custom action for OK if needed, e.g., navigate to error screen
+          Navigator.of(context).pop(); // Dismiss the dialog first
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    const LocationScreen(locationWeather: null),
+              ),
+            );
+          }
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // Use the global dialog utility
+      showErrorDialog(
+        context: context,
+        title: 'Unexpected Error',
+        message: 'An error occurred: ${e.toString()}',
+        onOkPressed: () {
+          Navigator.of(context).pop(); // Dismiss the dialog
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    const LocationScreen(locationWeather: null),
+              ),
+            );
+          }
+        },
       );
     }
   }
